@@ -1,0 +1,36 @@
+[X] Rewrite User service for new model
+[X] Add `Answer` model
+[X] Add `Question` model
+[X] Add `Participant` and `Contest` models
+[X] Add `QuestionService`
+[X] Add `ContestService`
+
+[X] Write User API
+[X] Write Question API
+[X] Write Contest API
+
+[ ] Add debug endpoints
+    "/debug-participants"
+    "/debug-contests"
+    "/debug-users"
+
+[ ] Abstract participant answer type
+    It is currently 'short', but into some value class?
+[ ] Code ContestService#getResult properly
+[ ] Code ContestService#getLeaderboard properly
+[ ] Add auth stuff
+
+[ ] How to not lose database when pod fails?
+    Add snapshot capability, store everything
+    to somewhere asynchronously
+    Why not add SQL? I am too lazy for that
+
+What can we do currently?
+
+1. Create a new empty contest
+2. Add some questions to it
+3. Add some participants to it
+4. Put participant answers
+5. Get results of a particular participant
+
+

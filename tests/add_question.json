@@ -1,0 +1,9 @@
+{
+  "description": "Question description",
+  "answers": [
+    "answer1",
+    "answer2",
+    "answer3"
+  ],
+  "correctAnswer": 1
+}
