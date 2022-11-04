@@ -6,8 +6,8 @@ import io.circe.syntax._
 import org.http4s._
 import org.http4s.circe._
 import org.http4s.dsl._
+import org.http4s.server.Router
 import testcontest.services._
-
 import testcontest.model.JsonSupport._
 
 final class AdminRoutes[F[_]: JsonDecoder: Async](
@@ -17,26 +17,26 @@ final class AdminRoutes[F[_]: JsonDecoder: Async](
     questionRepository: QuestionRepository[F],
 ) {
 
-  def allRoutes: HttpRoutes[F] = {
+  private def adminRoutes: HttpRoutes[F] = {
     val dsl = Http4sDsl[F]
     import dsl._
-    // TODO: How to add "admin" prefix to all routes here?
     HttpRoutes.of[F] {
-      case GET -> Root / "admin" / "contest" =>
+      case GET -> Root / "contest" =>
         contestRepository.getAllContests
           .flatMap(contests => Ok(contests.asJson))
 
-      case GET -> Root / "admin" / "user" =>
+      case GET -> Root / "user" =>
         userRepository.getAllUsers
           .flatMap(users => Ok(users.asJson))
 
-      case GET -> Root / "admin" / "participant" =>
+      case GET -> Root / "participant" =>
         participantRepository.getAllParticipants
           .flatMap(participants => Ok(participants.asJson))
 
-      case GET -> Root / "admin" / "question" =>
+      case GET -> Root / "question" =>
         questionRepository.getAllQuestions
           .flatMap(questions => Ok(questions.asJson))
     }
   }
+  def allRoutes: HttpRoutes[F] = Router("admin" -> adminRoutes)
 }

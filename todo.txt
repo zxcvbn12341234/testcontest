@@ -20,14 +20,19 @@
     "/debug-contests"
     "/debug-users"
 
+[ ] Code ContestService#getResult properly
+
+[ ] Code ContestService#getLeaderboard properly
+
 [ ] A proper test with user flow
     Use Python, create user, add question, post some answer
     And check if the result/leaderboard makes sense
 
-[ ] Abstract participant answer type
-    It is currently 'short', but into some value class?
-[ ] Code ContestService#getResult properly
-[ ] Code ContestService#getLeaderboard properly
+[ ] Use Configuration in more places and improve it
+    Remove PostgresConfiguration, and add configuration
+    related to in memory storage
+
+
 [ ] Add auth stuff
 
 What can we do currently?

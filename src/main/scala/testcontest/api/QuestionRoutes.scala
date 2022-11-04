@@ -30,11 +30,9 @@ final class QuestionRoutes[F[_]: JsonDecoder: Async](
           .flatMap(questions => Ok(questions.asJson))
 
       // Get a particular question
-      case GET -> Root / "question" / questionId =>
+      case GET -> Root / "question" / UUIDVar(questionId) =>
         questionService
-          .getQuestion(
-            UUID.fromString(questionId)
-          ) // TODO: Is there a way to specify type in case?
+          .getQuestion(questionId)
           .flatMap {
             case Some(question) => Ok(question.asJson)
             case None           => NotFound()

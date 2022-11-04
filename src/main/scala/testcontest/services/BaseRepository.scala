@@ -41,9 +41,6 @@ trait BaseRepository[F[_], Key, Value] {
             storage + (id -> newValue)
           case None => storage
       })
-
-  // Why does this throw the error?
-  // Shouldn't it be wrapped inside F?
   private def inputStream(implicit ev: Sync[F]): Resource[F, FileInputStream] =
     Resource.fromAutoCloseable(Sync[F].blocking(new FileInputStream(s"$repositoryName.json")))
   private def outputStream(implicit ev: Sync[F]): Resource[F, FileOutputStream] =
@@ -68,8 +65,7 @@ trait BaseRepository[F[_], Key, Value] {
           }
         }
         .flatMap(storage => storageRef.getAndSet(storage))
-        // TODO: Probably there is something already to drop value
-        .map(_ => ())
+        .void
     }.handleErrorWith(err =>
       Console[F].println(s"Reading snapshot failed with $err, initializing empty snapshot"))
 }
