@@ -24,7 +24,7 @@ object Contest {
   ): Contest =
     Contest(UUID.randomUUID(), participants, questions, startDate, endDate)
 
-  object JsonSupport {
+  trait JsonSupport {
     implicit val ContestJsonEncoder: Encoder[Contest] =
       deriveEncoder[Contest]
     implicit val ContestJsonDecoder: Decoder[Contest] =
@@ -33,5 +33,6 @@ object Contest {
     import io.circe.syntax._
     implicit val uuidEncoder: Encoder[UUID] = uuid => uuid.toString.asJson
   }
+  object JsonSupport extends JsonSupport
 
 }

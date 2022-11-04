@@ -1,7 +1,6 @@
 package testcontest.api
 
-import cats.Monad
-import cats.effect.{Async, Concurrent}
+import cats.effect.Async
 import cats.syntax.all._
 import io.circe._
 import io.circe.generic.semiauto._
@@ -15,7 +14,7 @@ import testcontest.services.QuestionService
 
 import java.util.UUID
 
-final class QuestionRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent](
+final class QuestionRoutes[F[_]: JsonDecoder: Async](
     questionService: QuestionService[F]
 ) {
 
@@ -45,17 +44,18 @@ final class QuestionRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent](
       case req @ (POST -> Root / "question") =>
         req
           .decodeJson[QuestionCreateRequest]
-          .flatMap(request =>
-            questionService
-              .addQuestion(
-                request.description,
-                request.answers,
-                request.correctAnswer
-              )
-          )
+          .flatMap(
+            request =>
+              questionService
+                .addQuestion(
+                  request.description,
+                  request.answers,
+                  request.correctAnswer
+              ))
           .flatMap(question => Ok(question.asJson))
-          .handleErrorWith { case InvalidMessageBodyFailure(details, _) =>
-            BadRequest(s"Failed to deserialize user\n$details")
+          .handleErrorWith {
+            case InvalidMessageBodyFailure(details, _) =>
+              BadRequest(s"Failed to deserialize user\n$details")
           }
     }
   }

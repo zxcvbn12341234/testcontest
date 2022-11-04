@@ -21,13 +21,13 @@ object User {
       username: String,
       password: String,
       profile_photo: String = DefaultProfilePhoto
-  ): User = {
+  ): User =
     User(username, password, profile_photo, OffsetDateTime.now())
-  }
 
-  object JsonSupport {
+  trait JsonSupport {
     implicit val UserJsonEncoder: Encoder[User] = deriveEncoder[User]
     implicit val UserJsonDecoder: Decoder[User] = deriveDecoder[User]
   }
+  object JsonSupport extends JsonSupport
 
 }

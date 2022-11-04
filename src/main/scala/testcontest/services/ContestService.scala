@@ -2,10 +2,12 @@ package testcontest.services
 
 import testcontest.model.{Contest, Participant}
 import cats._
-import cats.syntax.all._
+import cats.implicits._
+import cats.effect._
 
-import java.time.OffsetDateTime
+import java.time.{Instant, OffsetDateTime, ZoneOffset}
 import java.util.UUID
+import scala.concurrent.duration.FiniteDuration
 
 trait ContestService[F[_]] {
 
@@ -43,111 +45,109 @@ trait ContestService[F[_]] {
 
 object ContestService {
 
-  def make[F[_]](
+  def offsetDateTimeFromEpochMilliseconds(time: FiniteDuration): OffsetDateTime =
+    OffsetDateTime.ofInstant(Instant.ofEpochMilli(time.toMillis), ZoneOffset.UTC)
+
+  def make[F[_]: Clock](
       contestRepository: ContestRepository[F],
       participantRepository: ParticipantRepository[F],
       questionRepository: QuestionRepository[F]
-  )(implicit ev: MonadError[F, Throwable]): F[ContestService[F]] =
-    Monad[F].pure {
-      new ContestService[F] {
-        override def createEmptyContest: F[Contest] = {
+  )(implicit ev: MonadError[F, Throwable]): ContestService[F] =
+    new ContestService[F] {
+      override def createEmptyContest: F[Contest] =
+        Clock[F].realTime.map(offsetDateTimeFromEpochMilliseconds).flatMap { time =>
           val contest = Contest.contest(
             List.empty,
             List.empty,
-            OffsetDateTime.now(),
-            OffsetDateTime.now()
+            time,
+            time
           )
           contestRepository.putContest(contest)
         }
 
-        override def getContest(contestId: UUID): F[Option[Contest]] =
-          contestRepository.getContest(contestId)
+      override def getContest(contestId: UUID): F[Option[Contest]] =
+        contestRepository.getContest(contestId)
 
-        private def updateContest(
-            contestId: UUID,
-            f: Contest => Contest
-        ): F[Unit] = {
-          contestRepository.getContest(contestId).flatMap {
-            case Some(contest) =>
-              val updatedContest = f(contest)
-              contestRepository.putContest(updatedContest).map(_ => ())
-            case None => Monad[F].unit
-          }
+      private def updateContest(
+          contestId: UUID,
+          f: Contest => Contest
+      ): F[Unit] = {
+        contestRepository.getContest(contestId).flatMap {
+          case Some(contest) =>
+            val updatedContest = f(contest)
+            contestRepository.putContest(updatedContest).map(_ => ())
+          case None => Monad[F].unit
         }
+      }
 
-        override def updateContestDates(
-            contestId: UUID,
-            startDate: OffsetDateTime,
-            endDate: OffsetDateTime
-        ): F[Unit] = updateContest(
+      override def updateContestDates(
+          contestId: UUID,
+          startDate: OffsetDateTime,
+          endDate: OffsetDateTime
+      ): F[Unit] = updateContest(
+        contestId,
+        contest => contest.copy(startDate = startDate, endDate = endDate)
+      )
+
+      override def addQuestion(contestId: UUID, question: UUID): F[Unit] =
+        updateContest(
           contestId,
-          contest => contest.copy(startDate = startDate, endDate = endDate)
+          contest => contest.copy(questions = contest.questions :+ question)
         )
 
-        override def addQuestion(contestId: UUID, question: UUID): F[Unit] =
-          updateContest(
-            contestId,
-            contest => contest.copy(questions = contest.questions :+ question)
-          )
+      override def deleteQuestion(
+          contestId: UUID,
+          question: UUID
+      ): F[Unit] =
+        updateContest(
+          contestId,
+          contest => contest.copy(questions = contest.questions.filter(_ != question))
+        )
 
-        override def deleteQuestion(
-            contestId: UUID,
-            question: UUID
-        ): F[Unit] =
-          updateContest(
-            contestId,
-            contest =>
-              contest.copy(questions = contest.questions.filter(_ != question))
+      override def addParticipant(
+          contestId: UUID,
+          user: String
+      ): F[Unit] =
+        participantRepository
+          .putParticipant(
+            Participant.participant(contestId, user, Map.empty)
           )
-
-        override def addParticipant(
-            contestId: UUID,
-            user: String
-        ): F[Unit] =
-          participantRepository
-            .putParticipant(
-              Participant.participant(contestId, user, Map.empty)
-            )
-            .flatMap(participant =>
+          .flatMap(
+            participant =>
               updateContest(
                 contestId,
                 contest =>
                   contest
                     .copy(participants =
-                      contest.participants :+ participant.participantId
-                    )
-              )
-            )
+                      contest.participants :+ participant.id)
+            ))
 
-        override def deleteParticipant(
-            contestId: UUID,
-            participant: UUID
-        ): F[Unit] =
-          updateContest(
-            contestId,
-            contest =>
-              contest.copy(participants =
-                contest.participants.filter(_ == participant)
-              )
-          ).flatMap(_ => participantRepository.deleteParticipant(participant))
+      override def deleteParticipant(
+          contestId: UUID,
+          participant: UUID
+      ): F[Unit] =
+        updateContest(
+          contestId,
+          contest => contest.copy(participants = contest.participants.filter(_ == participant))
+        ).flatMap(_ => participantRepository.deleteParticipant(participant))
 
-        override def registerAnswer(
-            contestId: UUID,
-            username: String,
-            questionId: UUID,
-            userAnswer: Short
-        ): F[Participant] =
-          participantRepository.getParticipant(contestId, username).flatMap {
-            case Some(participant) =>
-              val updatedParticipant = participant.copy(answers =
-                  participant.answers.updated(questionId, userAnswer)
-                )
-              participantRepository.putParticipant(updatedParticipant)
-            case None => ev.raiseError(new Exception("Participant not found"))
-          }
+      override def registerAnswer(
+          contestId: UUID,
+          username: String,
+          questionId: UUID,
+          userAnswer: Short
+      ): F[Participant] =
+        participantRepository.getParticipant(contestId, username).flatMap {
+          case Some(participant) =>
+            val updatedParticipant =
+              participant.copy(answers = participant.answers.updated(questionId, userAnswer))
+            participantRepository.putParticipant(updatedParticipant)
+          case None => ev.raiseError(new Exception("Participant not found"))
+        }
 
-        // TODO: Check if we can use OptionT here
-        override def getResult(contestId: UUID, username: String): F[Int] = for {
+      // TODO: Check if we can use OptionT here
+      override def getResult(contestId: UUID, username: String): F[Int] =
+        for {
           participantMaybe <- participantRepository.getParticipant(
             contestId,
             username
@@ -166,15 +166,14 @@ object ContestService {
               participant.answers.get(question.id) match {
                 case Some(answer) if answer == question.correctAnswer => 1
                 case _                                                => 0
-              }
-            )
+            })
             .sum
 
         } yield score
 
-        override def getLeaderboard: F[Unit] = Monad[F].unit
+      override def getLeaderboard: F[Unit] = Monad[F].unit
 
-        override def getAllParticipants: F[List[Participant]] = participantRepository.getAllParticipants()
-      }
+      override def getAllParticipants: F[List[Participant]] =
+        participantRepository.getAllParticipants
     }
 }

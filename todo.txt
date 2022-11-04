@@ -9,21 +9,26 @@
 [X] Write Question API
 [X] Write Contest API
 
-[ ] Add debug endpoints
+[X] Refactor
+
+[X] Add storing snapshots as JSON file
+    And loading snapshots when application
+    starts
+
+[X] Add debug endpoints
     "/debug-participants"
     "/debug-contests"
     "/debug-users"
+
+[ ] A proper test with user flow
+    Use Python, create user, add question, post some answer
+    And check if the result/leaderboard makes sense
 
 [ ] Abstract participant answer type
     It is currently 'short', but into some value class?
 [ ] Code ContestService#getResult properly
 [ ] Code ContestService#getLeaderboard properly
 [ ] Add auth stuff
-
-[ ] How to not lose database when pod fails?
-    Add snapshot capability, store everything
-    to somewhere asynchronously
-    Why not add SQL? I am too lazy for that
 
 What can we do currently?
 

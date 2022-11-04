@@ -1,8 +1,6 @@
 package testcontest.api
 
-import cats.Monad
-import cats.effect.std.Console
-import cats.effect.{Async, Concurrent}
+import cats.effect.Async
 import cats.syntax.all._
 import io.circe._
 import io.circe.generic.semiauto._
@@ -15,12 +13,11 @@ import testcontest.model.Contest.JsonSupport._
 import testcontest.model.Participant.JsonSupport._
 import testcontest.services.ContestService
 
-import java.lang.{Exception, Throwable}
 import java.time.OffsetDateTime
 import java.util.UUID
 import scala.util.{Failure, Success, Try}
 
-final class ContestRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent: Console](
+final class ContestRoutes[F[_]: JsonDecoder: Async](
     contestService: ContestService[F]
 ) {
 
@@ -49,13 +46,13 @@ final class ContestRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent: Console](
       case req @ POST -> Root / "contest" / UUIDVar(contestId) / "dates" =>
         req
           .decodeJson[ContestDatesUpdateRequest]
-          .flatMap(request =>
-            contestService.updateContestDates(
-              contestId,
-              request.startDate,
-              request.endDate
-            )
-          )
+          .flatMap(
+            request =>
+              contestService.updateContestDates(
+                contestId,
+                request.startDate,
+                request.endDate
+            ))
           .flatMap(_ => contestService.getContest(contestId))
           .flatMap {
             case Some(contest) => Ok(contest.asJson)
@@ -70,10 +67,7 @@ final class ContestRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent: Console](
         req
           .decodeJson[ContestAddQuestionsRequest]
           .flatMap(request =>
-            request.questions.traverse(question =>
-              contestService.addQuestion(contestId, question)
-            )
-          )
+            request.questions.traverse(question => contestService.addQuestion(contestId, question)))
           .flatMap(_ => contestService.getContest(contestId))
           .flatMap {
             case Some(contest) => Ok(contest.asJson)
@@ -98,10 +92,7 @@ final class ContestRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent: Console](
         req
           .decodeJson[ContestAddParticipantsRequest]
           .flatMap(request =>
-            request.users.traverse(username =>
-              contestService.addParticipant(contestId, username)
-            )
-          )
+            request.users.traverse(username => contestService.addParticipant(contestId, username)))
           .flatMap(_ => contestService.getContest(contestId))
           .flatMap {
             case Some(contest) => Ok(contest.asJson)
@@ -115,8 +106,8 @@ final class ContestRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent: Console](
         req
           .decodeJson[ContestParticipantPutAnswersRequest]
           .flatMap(request =>
-            request.answers.toList
-              .traverse { case (questionId, answer) =>
+            request.answers.toList.traverse {
+              case (questionId, answer) =>
                 contestService
                   .registerAnswer(
                     contestId,
@@ -124,16 +115,15 @@ final class ContestRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent: Console](
                     questionId,
                     answer
                   )
-              }
-              .map(participants => Try(participants.last))
-          )
+            }.map(participants => Try(participants.last)))
           .flatMap {
             case Success(participant) => Ok(participant.asJson)
             case Failure(_) =>
               NotFound("Could not find resources for the request")
           }
-          .handleErrorWith { case ex: Exception =>
-            InternalServerError(ex.toString)
+          .handleErrorWith {
+            case ex: Exception =>
+              InternalServerError(ex.toString)
           }
 
       case GET -> Root / "contest" / UUIDVar(
@@ -141,16 +131,7 @@ final class ContestRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent: Console](
           ) / "participant" / username =>
         contestService
           .getResult(contestId, username)
-          .flatMap(correctCount =>
-            Ok(s"User has $correctCount correct answers")
-          )
-
-      case GET -> Root / "debug-participants" =>
-        import testcontest.model.Participant.JsonSupport._
-        contestService
-          .getAllParticipants
-          .flatMap(participants => Ok(participants.asJson))
-
+          .flatMap(correctCount => Ok(s"User has $correctCount correct answers"))
     }
   }
 
@@ -169,20 +150,17 @@ object ContestRoutes {
     deriveDecoder[ContestDatesUpdateRequest]
 
   case class ContestAddQuestionsRequest(questions: List[UUID])
-  implicit
-  val CAddQuestionsRequestEncoder: Decoder[ContestAddQuestionsRequest] =
+  implicit val CAddQuestionsRequestEncoder: Decoder[ContestAddQuestionsRequest] =
     deriveDecoder[ContestAddQuestionsRequest]
 
   case class ContestAddParticipantsRequest(users: List[String])
-  implicit
-  val CAddParticipantsRequestEncoder: Decoder[ContestAddParticipantsRequest] =
+  implicit val CAddParticipantsRequestEncoder: Decoder[ContestAddParticipantsRequest] =
     deriveDecoder[ContestAddParticipantsRequest]
 
   case class ContestParticipantPutAnswersRequest(
       username: String,
       answers: Map[UUID, Short]
   )
-  implicit val CParticipantPutAnswersRequestEncoder
-      : Decoder[ContestParticipantPutAnswersRequest] =
+  implicit val CParticipantPutAnswersRequestEncoder: Decoder[ContestParticipantPutAnswersRequest] =
     deriveDecoder[ContestParticipantPutAnswersRequest]
 }

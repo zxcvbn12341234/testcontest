@@ -21,33 +21,31 @@ trait QuestionService[F[_]] {
 
 object QuestionService {
 
-  def make[F[_]: Monad](
+  def make[F[_]](
       questionRepository: QuestionRepository[F]
-  )(implicit ev: ApplicativeError[F, Throwable]): F[QuestionService[F]] =
-    Monad[F].pure {
-      new QuestionService[F] {
+  )(implicit ev: MonadError[F, Throwable]): QuestionService[F] =
 
-        override def addQuestion(
-            description: String,
-            answers: List[String],
-            correctAnswer: Short
-        ): F[Question] = {
-          val question = Question.question(description, answers, correctAnswer)
-          questionRepository.getQuestion(question.id).flatMap {
-            // id collision, generate again
-            case Some(_) => addQuestion(description, answers, correctAnswer)
-            case None    => questionRepository.putQuestion(question)
-          }
+    new QuestionService[F] {
+      override def addQuestion(
+          description: String,
+          answers: List[String],
+          correctAnswer: Short
+      ): F[Question] = {
+        val question = Question.question(description, answers, correctAnswer)
+        questionRepository.getQuestion(question.id).flatMap {
+          // id collision, generate again
+          case Some(_) => addQuestion(description, answers, correctAnswer)
+          case None    => questionRepository.putQuestion(question)
         }
-
-        override def getQuestion(questionId: UUID): F[Option[Question]] =
-          questionRepository.getQuestion(questionId)
-
-        override def deleteQuestion(questionId: UUID): F[Unit] =
-          questionRepository.deleteQuestion(questionId)
-
-        override def allQuestions: F[List[Question]] =
-          questionRepository.getAllQuestions
       }
+
+      override def getQuestion(questionId: UUID): F[Option[Question]] =
+        questionRepository.getQuestion(questionId)
+
+      override def deleteQuestion(questionId: UUID): F[Unit] =
+        questionRepository.deleteQuestion(questionId)
+
+      override def allQuestions: F[List[Question]] =
+        questionRepository.getAllQuestions
     }
 }

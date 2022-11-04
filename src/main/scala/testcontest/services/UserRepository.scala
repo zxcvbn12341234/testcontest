@@ -1,9 +1,11 @@
 package testcontest.services
 
+import cats.Functor
+import cats.effect.std.Console
 import cats.effect.{Ref, Sync}
-import cats.{Functor, Monad, MonadThrow}
 import cats.syntax.all._
 import testcontest.model.User
+import testcontest.model.User.JsonSupport._
 
 trait UserRepository[F[_]] {
 
@@ -20,36 +22,43 @@ trait UserRepository[F[_]] {
   def exists(username: String): F[Boolean]
 
   /** Returns all of the users stored */
-  def getAllUsers(): F[List[User]]
+  def getAllUsers: F[List[User]]
+
+  def start: F[Unit]
+  def finished: F[Unit]
 
 }
 
 object UserRepository {
-
-  // TODO: Rewrite with BaseRepository
-  def makeInMemory[F[_]: Functor: Sync]: F[UserRepository[F]] =
+  def makeInMemory[F[_]: Functor: Sync: Console]: F[UserRepository[F]] =
     Ref.of[F, Map[String, User]](Map.empty[String, User]).map { userDatabaseF =>
-      new UserRepository[F] {
-        override def getUser(username: String): F[Option[User]] = for {
-          userDatabase <- userDatabaseF.get
-        } yield userDatabase.get(username)
+      new UserRepository[F] with BaseRepository[F, String, User] {
+        override val storageRef: Ref[F, Map[String, User]] = userDatabaseF
 
-        override def putUser(user: User): F[User] = userDatabaseF
-          .update { userDatabase =>
-            userDatabase + (user.username -> user)
-          }
-          .map(_ => user)
+        override val repositoryName = "user-repository"
 
-        override def deleteUser(username: String): F[Unit] = userDatabaseF
-          .update { userDatabase =>
-            userDatabase - username
-          }
+        override def key(value: User): String = value.username
+
+        override def getUser(username: String): F[Option[User]] = get(username)
+
+        override def putUser(user: User): F[User] = put(user)
+
+        override def deleteUser(username: String): F[Unit] = delete(username)
 
         override def exists(username: String): F[Boolean] =
           getUser(username).map(_.isDefined)
 
-        override def getAllUsers(): F[List[User]] =
-          userDatabaseF.get.map(userDatabase => userDatabase.values.toList)
+        override def getAllUsers: F[List[User]] = getAll
+
+        override def start: F[Unit] =
+          Console[F].println("Initializing user repository from file...") >>
+            readSnapshot >>
+            Console[F].println("Initialized.")
+
+        override def finished: F[Unit] =
+          Console[F].println("Saving user repository file...") >>
+            saveSnapshot >>
+            Console[F].println("Saved.")
       }
 
     }

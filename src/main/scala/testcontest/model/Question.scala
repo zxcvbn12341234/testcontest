@@ -19,11 +19,13 @@ object Question {
       correctAnswer: Short
   ): Question = Question(UUID.randomUUID(), description, answers, correctAnswer)
 
-  object JsonSupport {
+  trait JsonSupport {
     implicit val QuestionJsonEncoder: Encoder[Question] =
       deriveEncoder[Question]
     implicit val QuestionJsonDecoder: Decoder[Question] =
       deriveDecoder[Question]
   }
+
+  object JsonSupport extends JsonSupport
 
 }

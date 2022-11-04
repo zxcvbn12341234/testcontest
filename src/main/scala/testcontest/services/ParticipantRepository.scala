@@ -1,9 +1,10 @@
 package testcontest.services
 
-import cats.Functor
+import cats.effect.std.Console
 import cats.effect.{Ref, Sync}
 import cats.syntax.all._
 import testcontest.model.Participant
+import testcontest.model.Participant.JsonSupport._
 
 import java.util.UUID
 
@@ -17,48 +18,53 @@ trait ParticipantRepository[F[_]] {
 
   def deleteParticipant(id: UUID): F[Unit]
 
-  def getAllParticipants(): F[List[Participant]]
+  def getAllParticipants: F[List[Participant]]
+
+  def start: F[Unit]
+  def finished: F[Unit]
 
 }
 
 object ParticipantRepository {
 
-  // TODO: Rewrite with BaseRepository
-  def makeInMemory[F[_]: Functor: Sync]: F[ParticipantRepository[F]] =
-    Ref.of[F, Map[UUID, Participant]](Map.empty[UUID, Participant]).map {
-      participantDatabaseF =>
-        new ParticipantRepository[F] {
-          override def getParticipant(id: UUID): F[Option[Participant]] = for {
-            participantDatabase <- participantDatabaseF.get
-          } yield participantDatabase.get(id)
+  def makeInMemory[F[_]: Sync: Console]: F[ParticipantRepository[F]] =
+    Ref.of[F, Map[UUID, Participant]](Map.empty[UUID, Participant]).map { participantDatabaseF =>
+      new ParticipantRepository[F] with BaseRepository[F, UUID, Participant] {
 
-          override def getParticipant(
-              contestId: UUID,
-              username: String
-          ): F[Option[Participant]] = for {
-            participantDatabase <- participantDatabaseF.get
-          } yield participantDatabase.values.find(participant =>
-            participant.contestId == contestId && participant.username == username
-          )
+        protected val storageRef: Ref[F, Map[UUID, Participant]] = participantDatabaseF
 
-          override def putParticipant(
-              participant: Participant
-          ): F[Participant] = participantDatabaseF
-            .update { participantDatabase =>
-              participantDatabase + (participant.participantId -> participant)
-            }
-            .map(_ => participant)
+        override val repositoryName = "participant-repository"
 
-          override def deleteParticipant(id: UUID): F[Unit] =
-            participantDatabaseF
-              .update { participantDatabase =>
-                participantDatabase - id
-              }
+        override def key(value: Participant): UUID = value.id
 
-          override def getAllParticipants(): F[List[Participant]] =
-            participantDatabaseF.get
-              .map(participantDatabase => participantDatabase.values.toList)
-        }
+        override def getParticipant(id: UUID): F[Option[Participant]] = get(id)
+
+        override def getParticipant(
+            contestId: UUID,
+            username: String
+        ): F[Option[Participant]] =
+          getAll.map(_.find(participant =>
+            participant.contestId == contestId && participant.username == username))
+
+        override def putParticipant(
+            participant: Participant
+        ): F[Participant] = put(participant)
+
+        override def deleteParticipant(id: UUID): F[Unit] = delete(id)
+
+        override def getAllParticipants: F[List[Participant]] = getAll
+
+        override def start: F[Unit] =
+          Console[F].println("Initializing participant repository from file...") >>
+            readSnapshot >>
+            Console[F].println("Initialized.")
+
+        override def finished: F[Unit] =
+          Console[F].println("Saving participant repository file...") >>
+            saveSnapshot >>
+            Console[F].println("Saved.")
+
+      }
 
     }
 }

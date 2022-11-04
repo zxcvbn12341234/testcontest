@@ -18,7 +18,7 @@ import testcontest.services.UserService.UserAlreadyExists
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
-final class UserRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent](
+final class UserRoutes[F[_]: JsonDecoder: Async](
     userService: UserService[F]
 ) {
 
@@ -39,8 +39,7 @@ final class UserRoutes[F[_]: JsonDecoder: Monad: Async: Concurrent](
           .decodeJson[UserCreateRequest]
           .flatMap(userCreateRequest =>
             userService
-              .register(userCreateRequest.username, userCreateRequest.password)
-          )
+              .register(userCreateRequest.username, userCreateRequest.password))
           .flatMap(user => Ok(user.asJson))
           .handleErrorWith {
             case InvalidMessageBodyFailure(details, _) =>
